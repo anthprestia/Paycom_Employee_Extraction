@@ -3,33 +3,32 @@ package org.extract;
 import me.tongfei.progressbar.ProgressBar;
 import me.tongfei.progressbar.ProgressBarBuilder;
 import me.tongfei.progressbar.ProgressBarStyle;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.extract.Pages.ChecklistExtraction;
-import org.extract.Pages.DocumentExtraction;
-import org.extract.Pages.PAFExtraction;
-import org.extract.Pages.PaystubExtraction;
+import org.extract.pages.PAFExtraction;
 import org.json.JSONObject;
-import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
-import org.openqa.selenium.interactions.Action;
 import org.openqa.selenium.interactions.Actions;
-import org.openqa.selenium.support.ui.*;
-import org.apache.poi.xssf.usermodel.*;
+import org.openqa.selenium.support.ui.ExpectedCondition;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.FluentWait;
+import org.openqa.selenium.support.ui.WebDriverWait;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileFilter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.text.SimpleDateFormat;
 import java.time.Duration;
-import java.util.*;
-
-import static java.lang.Thread.sleep;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
 
 /**
  * @author Anthony Prestia
@@ -39,11 +38,11 @@ public class Main {
     /**
      * The instance of the logger
      */
-    private static final Logger logger = LogManager.getLogger(Main.class);
-    private static final Path employeesFolder = Paths.get("./Employees");
-    private static final Path downloadFolder = Paths.get("C:/Users/aprestia/IdeaProjects/Paycom_Employee_Extraction/Downloads");
+    private static final Logger logger          = LogManager.getLogger(Main.class);
+    private static final Path   employeesFolder = Paths.get("./Employees");
+    private static final Path   downloadFolder  = Paths.get("./Downloads");
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         System.setProperty("webdriver.chrome.driver", "C:\\chromedriver.exe");
         Scanner scanner = new Scanner(System.in);
         System.out.println("Please list the directory you want to save the checklist and employee photos: ");
@@ -52,7 +51,8 @@ public class Main {
 
         try {
             downloadDirPath = Paths.get(scanner.nextLine()).toFile().getCanonicalFile().toPath();
-        } catch (IOException canonical) {
+        }
+        catch (IOException canonical) {
             logger.fatal("Unable to get canonical path", canonical);
             System.exit(1);
         }
@@ -75,36 +75,23 @@ public class Main {
         ChromeOptions chromeOptions = new ChromeOptions();
         JSONObject settings = new JSONObject(
                 "{\n" +
-                        "   \"recentDestinations\": [\n" +
-                        "       {\n" +
-                        "           \"id\": \"Save as PDF\",\n" +
-                        "           \"origin\": \"local\",\n" +
-                        "           \"account\": \"\",\n" +
-                        "       }\n" +
-                        "   ],\n" +
-                        "   \"selectedDestinationId\": \"Save as PDF\",\n" +
-                        "   \"version\": 2\n" +
-                        "}");
-        JSONObject prefs = new JSONObject(
-                "{\n" +
-                        "   \"plugins.plugins_list\":\n" +
-                        "       [\n" +
-                        "           {\n" +
-                        "               \"enabled\": False,\n" +
-                        "               \"name\": \"Chrome PDF Viewer\"\n" +
-                        "          }\n" +
-                        "       ],\n" +
-                        "   \"download.extensions_to_open\": \"applications/pdf\"\n" +
-                        "}")
-                .put("printing.print_preview_sticky_settings.appState", settings)
+                "   \"recentDestinations\": [\n" +
+                "       {\n" +
+                "           \"id\": \"Save as PDF\",\n" +
+                "           \"origin\": \"local\",\n" +
+                "           \"account\": \"\",\n" +
+                "       }\n" +
+                "   ],\n" +
+                "   \"selectedDestinationId\": \"Save as PDF\",\n" +
+                "   \"version\": 2\n" +
+                "}");
+        Map<String, Object> prefsMap = new HashMap<>();
+        JSONObject prefs = new JSONObject()
                 .put("download.default_directory", download_dir)
-                .put("plugins.plugins_disabled", new String[]{
-                        "Adobe Flash Player",
-                        "Chrome PDF Viewer"
-                })
-                .put("plugins.always_open_pdf_externally", true)
                 .put("savefile.default_directory", download_dir);
-        chromeOptions.setExperimentalOption("prefs", prefs);
+        chromeOptions.setExperimentalOption("prefs", prefs.toMap());
+        chromeOptions.addArguments("--user-data-dir=" + Paths.get("./user_pref").toFile().getCanonicalFile());
+        chromeOptions.addArguments("--kiosk-printing");
         String url = "https://www.paycomonline.net/v4/cl/cl-login.php";
         WebDriver driver = new ChromeDriver(chromeOptions);
         WebDriverWait wait = new WebDriverWait(driver, 30);
